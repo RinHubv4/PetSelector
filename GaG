@@ -1,17 +1,16 @@
--- Rin Trade System V2 — Cyberpunk Dashboard (Dark Purple + Cyan)
+-- Rin Trade System V3.5 — Centered Cyberpunk Mobile Edition
 -- Place as a LocalScript in StarterPlayerScripts or StarterGui
--- 100% visual-only: fake timer, fake logs, sliding toggles, animated notifications
+-- Visual-only: centered layout, Players tab (avatar + selectable glow), Controls tab (sliding toggles), minimize, mobile scaling
 
 -- Services
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local StarterGui = game:GetService("StarterGui")
 
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+local localPlayer = Players.LocalPlayer
+local playerGui = localPlayer:WaitForChild("PlayerGui")
 
--- Utility
+-- Helper to create instances with properties
 local function New(class, props)
 	local obj = Instance.new(class)
 	if props then
@@ -26,589 +25,562 @@ local function New(class, props)
 	return obj
 end
 
+-- Theme colors (Black & White edition)
+local BG = Color3.fromRGB(10, 10, 10)          -- background (deep black)
+local PANEL = Color3.fromRGB(10, 10, 10)       -- panel
+local PURPLE = Color3.fromRGB(255, 255, 255)   -- replaced with pure white accent
+local CYAN = Color3.fromRGB(200, 200, 200)     -- soft gray highlight
+local TEXT = Color3.fromRGB(240, 240, 240)     -- main text (white)
+local SUB = Color3.fromRGB(160, 160, 160)      -- secondary text (gray)
+
+
 -- Root GUI
-local screenGui = New("ScreenGui", {Name = "RinTradeV2", ResetOnSpawn = false, Parent = playerGui, IgnoreGuiInset = true})
+local screenGui = New("ScreenGui", {
+	Name = "Rin Scripts",
+	Parent = playerGui,
+	ResetOnSpawn = false,
+	IgnoreGuiInset = true,
+	DisplayOrder = 9999,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+})
 
--- Theme colors
-local COLOR_BG = Color3.fromRGB(18, 12, 24)        -- deep background
-local COLOR_PANEL = Color3.fromRGB(28, 20, 36)     -- panel
-local COLOR_ACCENT_A = Color3.fromRGB(130, 79, 255) -- purple
-local COLOR_ACCENT_B = Color3.fromRGB(53, 255, 232) -- cyan
-local COLOR_TEXT = Color3.fromRGB(230, 230, 240)
-
--- Root frame (centered, responsive)
+-- Root frame (centered)
 local root = New("Frame", {
 	Parent = screenGui,
 	Name = "Root",
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.new(0.5, 0, 0.5, 0),
-	Size = UDim2.new(0, 760, 0, 420),
-	BackgroundColor3 = COLOR_BG,
+	Size = UDim2.new(0, 680, 0, 380),
+	BackgroundColor3 = BG,
 	BorderSizePixel = 0,
 	Active = true,
-	Draggable = true
+	Draggable = false,
 })
 New("UICorner", {Parent = root, CornerRadius = UDim.new(0, 16)})
-New("UIStroke", {Parent = root, Thickness = 1.4, Color = COLOR_PANEL})
+New("UIStroke", {Parent = root, Thickness = 1.4, Color = Color3.fromRGB(60, 36, 90)})
 
--- Glass layer / subtle blur-like effect (simulated)
+-- Responsive UIScale for mobile
+local uiScale = New("UIScale", {Parent = root})
+local function updateScale()
+	local sw = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.X or 1280
+	if sw < 420 then
+		uiScale.Scale = 0.72
+	elseif sw < 720 then
+		uiScale.Scale = 0.86
+	else
+		uiScale.Scale = 1
+	end
+end
+updateScale()
+if workspace.CurrentCamera then
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
+end
+
+-- Glass panel
 local glass = New("Frame", {
 	Parent = root,
-	Name = "Glass",
 	Size = UDim2.new(1, -18, 1, -18),
 	Position = UDim2.new(0, 9, 0, 9),
-	BackgroundColor3 = COLOR_PANEL,
+	BackgroundColor3 = PANEL,
 	BackgroundTransparency = 0.06,
 	BorderSizePixel = 0
 })
 New("UICorner", {Parent = glass, CornerRadius = UDim.new(0, 12)})
-New("UIStroke", {Parent = glass, Thickness = 1, Color = Color3.fromRGB(65, 50, 80), ApplyStrokeMode = Enum.ApplyStrokeMode.Border})
+New("UIStroke", {Parent = glass, Thickness = 1, Color = Color3.fromRGB(52, 34, 80)})
 
--- Header
+-- Header: title + subtitle + minimize button
 local header = New("Frame", {Parent = glass, Size = UDim2.new(1, 0, 0, 64), BackgroundTransparency = 1})
+New("UICorner", {Parent = header, CornerRadius = UDim.new(0, 12)})
+
 local title = New("TextLabel", {
 	Parent = header,
 	Size = UDim2.new(0.6, 0, 1, 0),
 	Position = UDim2.new(0.02, 0, 0, 0),
-	Text = "⚡ Rin Trade System V2",
-	TextColor3 = COLOR_TEXT,
+	Text = "Rin Scripts",
+	TextColor3 = TEXT,
 	Font = Enum.Font.GothamBold,
-	TextSize = 20,
+	TextSize = 18,
 	BackgroundTransparency = 1,
 	TextXAlignment = Enum.TextXAlignment.Left
 })
+
 local subtitle = New("TextLabel", {
 	Parent = header,
 	Size = UDim2.new(0.36, -10, 1, 0),
 	Position = UDim2.new(0.62, 0, 0, 0),
-	Text = "Cyberpunk • Visual Dashboard",
-	TextColor3 = Color3.fromRGB(170, 170, 200),
+	Text = "",
+	TextColor3 = SUB,
 	Font = Enum.Font.Gotham,
 	TextSize = 12,
 	BackgroundTransparency = 1,
 	TextXAlignment = Enum.TextXAlignment.Right
 })
-New("UICorner", {Parent = header, CornerRadius = UDim.new(0, 10)})
 
--- Top-right close button
-local closeBtn = New("TextButton", {
+local minimizeBtn = New("TextButton", {
 	Parent = header,
-	Size = UDim2.new(0, 36, 0, 36),
-	Position = UDim2.new(1, -44, 0, 14),
-	BackgroundTransparency = 1,
-	Text = "✕",
-	TextColor3 = Color3.fromRGB(200, 200, 200),
+	Size = UDim2.new(0, 40, 0, 36),
+	Position = UDim2.new(1, -52, 0, 14),
+	BackgroundColor3 = Color3.fromRGB(28, 18, 40),
+	Text = "▾",
 	Font = Enum.Font.GothamBold,
-	TextSize = 18
+	TextSize = 18,
+	TextColor3 = SUB,
+	AutoButtonColor = false
 })
-closeBtn.MouseEnter:Connect(function()
-	TweenService:Create(closeBtn, TweenInfo.new(0.12), {TextColor3 = COLOR_ACCENT_B}):Play()
-end)
-closeBtn.MouseLeave:Connect(function()
-	TweenService:Create(closeBtn, TweenInfo.new(0.12), {TextColor3 = Color3.fromRGB(200,200,200)}):Play()
-end)
-closeBtn.MouseButton1Click:Connect(function()
-	TweenService:Create(root, TweenInfo.new(0.28, Enum.EasingStyle.Quart), {Position = UDim2.new(0.5, -360, 1.4, 0), BackgroundTransparency = 1}):Play()
-	task.wait(0.28)
-	screenGui:Destroy()
-end)
+New("UICorner", {Parent = minimizeBtn, CornerRadius = UDim.new(0, 8)})
+New("UIStroke", {Parent = minimizeBtn, Color = Color3.fromRGB(60, 30, 100), Thickness = 1})
 
--- Left column (menu)
-local leftCol = New("Frame", {Parent = glass, Size = UDim2.new(0, 240, 1, -84), Position = UDim2.new(0, 12, 0, 72), BackgroundTransparency = 1})
-New("UICorner", {Parent = leftCol, CornerRadius = UDim.new(0, 10)})
-
--- Left panel card
-local leftCard = New("Frame", {
-	Parent = leftCol,
-	Size = UDim2.new(1, 0, 1, 0),
-	BackgroundColor3 = Color3.fromRGB(22, 14, 30),
-	BorderSizePixel = 0
+-- Left menu (Players / Controls)
+local leftW = 140
+local leftPanel = New("Frame", {
+	Parent = glass,
+	Size = UDim2.new(0, leftW, 1, -86),
+	Position = UDim2.new(0, 16, 0, 74),
+	BackgroundTransparency = 1
 })
-New("UICorner", {Parent = leftCard, CornerRadius = UDim.new(0, 12)})
-New("UIStroke", {Parent = leftCard, Thickness = 1, Color = Color3.fromRGB(50, 30, 60)})
+New("UICorner", {Parent = leftPanel, CornerRadius = UDim.new(0, 10)})
 
--- User / status section on left
-local avatarCircle = New("Frame", {
-	Parent = leftCard,
-	Size = UDim2.new(0, 68, 0, 68),
-	Position = UDim2.new(0, 12, 0, 12),
-	BackgroundColor3 = Color3.fromRGB(35, 20, 50)
-})
-New("UICorner", {Parent = avatarCircle, CornerRadius = UDim.new(1, 0)})
-New("UIStroke", {Parent = avatarCircle, Thickness = 1.6, Color = COLOR_ACCENT_A})
+local leftCard = New("Frame", {Parent = leftPanel, Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.fromRGB(22, 14, 30)})
+New("UICorner", {Parent = leftCard, CornerRadius = UDim.new(0, 10)})
+New("UIStroke", {Parent = leftCard, Color = Color3.fromRGB(48, 30, 60), Thickness = 1})
 
-local userNameLabel = New("TextLabel", {
-	Parent = leftCard,
-	Size = UDim2.new(1, -100, 0, 22),
-	Position = UDim2.new(0, 92, 0, 16),
-	Text = player.DisplayName or player.Name,
-	TextColor3 = COLOR_TEXT,
-	Font = Enum.Font.GothamBold,
-	TextSize = 14,
-	BackgroundTransparency = 1,
-	TextXAlignment = Enum.TextXAlignment.Left
-})
-local userSub = New("TextLabel", {
-	Parent = leftCard,
-	Size = UDim2.new(1, -100, 0, 16),
-	Position = UDim2.new(0, 92, 0, 38),
-	Text = "Operator • Cybernet",
-	TextColor3 = Color3.fromRGB(170, 170, 190),
-	Font = Enum.Font.Gotham,
-	TextSize = 11,
-	BackgroundTransparency = 1,
-	TextXAlignment = Enum.TextXAlignment.Left
-})
+-- Menu buttons
+local menu = New("Frame", {Parent = leftCard, Size = UDim2.new(1, -16, 0, 160), Position = UDim2.new(0, 8, 0, 12), BackgroundTransparency = 1})
+local menuList = New("UIListLayout", {Parent = menu})
+menuList.Padding = UDim.new(0, 10)
+menuList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
--- Menu buttons (tabs)
-local menuFrame = New("Frame", {Parent = leftCard, Size = UDim2.new(1, -24, 0, 160), Position = UDim2.new(0, 12, 0, 96), BackgroundTransparency = 1})
-local menuList = New("UIListLayout", {Parent = menuFrame})
-menuList.Padding = UDim.new(0, 8)
-
-local tabs = {"Overview", "Controls", "Logs"}
+local tabs = {"Players", "Trade Scam"}
 local tabButtons = {}
-local currentTab = "Overview"
+local panels = {}
+local currentTab = "Players"
 
-local function createTabButton(name)
+local function createTab(name, emoji)
 	local btn = New("TextButton", {
-		Parent = menuFrame,
-		Size = UDim2.new(1, 0, 0, 44),
-		BackgroundColor3 = Color3.fromRGB(29,22,40),
-		Text = "  " .. name,
-		TextColor3 = Color3.fromRGB(190,190,210),
+		Parent = menu,
+		Size = UDim2.new(1, 0, 0, 64),
+		BackgroundColor3 = Color3.fromRGB(32, 22, 48),
+		Text = emoji .. "\n" .. name,
+		TextColor3 = Color3.fromRGB(200, 190, 220),
+		TextSize = 13,
 		Font = Enum.Font.GothamBold,
-		TextSize = 14,
-		AutoButtonColor = false
+		AutoButtonColor = false,
+		TextWrapped = true
 	})
 	New("UICorner", {Parent = btn, CornerRadius = UDim.new(0, 10)})
-	local stroke = New("UIStroke", {Parent = btn, Thickness = 1, Color = Color3.fromRGB(55,40,80)})
-	local grad = New("UIGradient", {Parent = btn})
-	grad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(35,26,50)), ColorSequenceKeypoint.new(1, Color3.fromRGB(26,18,44))})
-	btn.MouseEnter:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(40,28,60)}):Play()
-	end)
+	New("UIStroke", {Parent = btn, Color = Color3.fromRGB(58, 40, 80), Thickness = 1})
+	btn.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(44,30,68)}):Play() end)
 	btn.MouseLeave:Connect(function()
 		if currentTab == name then
-			TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(50,35,70)}):Play()
+			TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(58,40,88)}):Play()
 		else
-			TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(29,22,40)}):Play()
+			TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(32,22,48)}):Play()
 		end
 	end)
-
 	btn.MouseButton1Click:Connect(function()
-		-- visual active state
 		for k, b in pairs(tabButtons) do
-			TweenService:Create(b, TweenInfo.new(0.14), {BackgroundColor3 = Color3.fromRGB(29,22,40)}):Play()
+			TweenService:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(32,22,48)}):Play()
 		end
-		TweenService:Create(btn, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(50,35,70)}):Play()
+		TweenService:Create(btn, TweenInfo.new(0.14), {BackgroundColor3 = Color3.fromRGB(58,40,88)}):Play()
 		currentTab = name
-		-- show content
 		for k, p in pairs(panels) do
 			p.Visible = (k == name)
-			p.ClipsDescendants = true
-			p.Position = UDim2.new(0, 0, 0, 0)
 		end
 	end)
 	tabButtons[name] = btn
 	return btn
 end
 
--- Create tab buttons
-for _, t in ipairs(tabs) do
-	createTabButton(t)
-end
+createTab("Players", "🧍")
+createTab("Trade Scam", "🎛️")
+TweenService:Create(tabButtons["Players"], TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(58,40,88)}):Play()
 
--- make the first tab look active
-TweenService:Create(tabButtons["Overview"], TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(50,35,70)}):Play()
-
--- Right column (content area)
-local rightCol = New("Frame", {Parent = glass, Size = UDim2.new(1, -280, 1, -84), Position = UDim2.new(0, 268, 0, 72), BackgroundTransparency = 1})
-New("UICorner", {Parent = rightCol, CornerRadius = UDim.new(0, 12)})
-
--- Content panels container
-local contentFrame = New("Frame", {Parent = rightCol, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1})
-New("UICorner", {Parent = contentFrame, CornerRadius = UDim.new(0, 12)})
-
--- Panels map (Overview, Controls, Logs)
-panels = {}
-
--- ---------- Overview Panel ----------
-local overview = New("Frame", {Parent = contentFrame, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1})
-panels["Overview"] = overview
-
--- Overview card (status + timer)
-local statusCard = New("Frame", {
-	Parent = overview,
-	Size = UDim2.new(1, -28, 0, 110),
-	Position = UDim2.new(0, 14, 0, 6),
-	BackgroundColor3 = Color3.fromRGB(24, 16, 34)
+-- Right content panel
+local rightPanel = New("Frame", {
+	Parent = glass,
+	Size = UDim2.new(1, -leftW - 48, 1, -86),
+	Position = UDim2.new(0, leftW + 32, 0, 74),
+	BackgroundTransparency = 1
 })
-New("UICorner", {Parent = statusCard, CornerRadius = UDim.new(0, 12)})
-New("UIStroke", {Parent = statusCard, Thickness = 1.2, Color = Color3.fromRGB(50, 34, 74)})
+New("UICorner", {Parent = rightPanel, CornerRadius = UDim.new(0, 10)})
 
-local statusTitle = New("TextLabel", {
-	Parent = statusCard,
-	Size = UDim2.new(1, -20, 0, 24),
+local content = New("Frame", {Parent = rightPanel, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1})
+
+-- ===== Players Panel =====
+local playersPanel = New("Frame", {Parent = content, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Visible = true})
+panels["Players"] = playersPanel
+
+local playersCard = New("Frame", {
+	Parent = playersPanel,
+	Size = UDim2.new(1, -12, 1, -12),
+	Position = UDim2.new(0, 6, 0, 6),
+	BackgroundColor3 = Color3.fromRGB(26, 18, 40)
+})
+New("UICorner", {Parent = playersCard, CornerRadius = UDim.new(0, 10)})
+New("UIStroke", {Parent = playersCard, Color = Color3.fromRGB(52, 34, 80), Thickness = 1})
+
+local playersTitle = New("TextLabel", {
+	Parent = playersCard,
+	Size = UDim2.new(1, -20, 0, 28),
 	Position = UDim2.new(0, 12, 0, 8),
 	BackgroundTransparency = 1,
-	Text = "Trade Status",
-	TextColor3 = Color3.fromRGB(200,200,220),
+	Text = "Players",
+	TextColor3 = SUB,
 	Font = Enum.Font.GothamBold,
 	TextSize = 14,
 	TextXAlignment = Enum.TextXAlignment.Left
 })
 
--- Neon status light
-local statusLight = New("Frame", {
-	Parent = statusCard,
-	Size = UDim2.new(0, 14, 0, 14),
-	Position = UDim2.new(0, 12, 0, 40),
-	BackgroundColor3 = Color3.fromRGB(170, 60, 60)
-})
-New("UICorner", {Parent = statusLight, CornerRadius = UDim.new(1, 0)})
-New("UIGlow", {Parent = statusLight}) -- UIGlow may not exist in some environments; safe to ignore if unavailable
-
-local statusText = New("TextLabel", {
-	Parent = statusCard,
-	Size = UDim2.new(1, -40, 0, 22),
-	Position = UDim2.new(0, 36, 0, 36),
+-- scrolling list for players
+local playersScroll = New("ScrollingFrame", {
+	Parent = playersCard,
+	Size = UDim2.new(1, -24, 1, -56),
+	Position = UDim2.new(0, 12, 0, 44),
 	BackgroundTransparency = 1,
-	Text = "Not in Trade",
-	TextColor3 = COLOR_TEXT,
-	Font = Enum.Font.Gotham,
-	TextSize = 15,
-	TextXAlignment = Enum.TextXAlignment.Left
+	ScrollBarImageColor3 = Color3.fromRGB(110, 80, 160)
 })
+playersScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+playersScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 
--- Fake timer display
-local timerLabel = New("TextLabel", {
-	Parent = statusCard,
-	Size = UDim2.new(0, 160, 0, 36),
-	Position = UDim2.new(1, -176, 0, 28),
-	BackgroundColor3 = Color3.fromRGB(14,10,18),
-	Text = "00:00",
-	TextColor3 = Color3.fromRGB(200, 200, 255),
-	Font = Enum.Font.GothamBold,
-	TextSize = 20
-})
-New("UICorner", {Parent = timerLabel, CornerRadius = UDim.new(0, 8)})
-New("UIStroke", {Parent = timerLabel, Thickness = 1, Color = Color3.fromRGB(60, 40, 80)})
+local playersListLayout = New("UIListLayout", {Parent = playersScroll})
+playersListLayout.Padding = UDim.new(0, 10)
+playersListLayout.SortOrder = Enum.SortOrder.Name
 
--- ---------- Controls Panel ----------
-local controls = New("Frame", {Parent = contentFrame, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Visible = false})
-panels["Controls"] = controls
+-- Keep track of entry objects by userId
+local playerEntries = {}
+local selectedUserId = nil
 
-local controlCard = New("Frame", {
-	Parent = controls,
-	Size = UDim2.new(1, -28, 0, 260),
-	Position = UDim2.new(0, 14, 0, 6),
-	BackgroundColor3 = Color3.fromRGB(24, 16, 34)
-})
-New("UICorner", {Parent = controlCard, CornerRadius = UDim.new(0, 12)})
-New("UIStroke", {Parent = controlCard, Thickness = 1.2, Color = Color3.fromRGB(50, 34, 74)})
-
-local controlTitle = New("TextLabel", {
-	Parent = controlCard,
-	Size = UDim2.new(1, -20, 0, 24),
-	Position = UDim2.new(0, 12, 0, 8),
-	BackgroundTransparency = 1,
-	Text = "Controls",
-	TextColor3 = Color3.fromRGB(200,200,220),
-	Font = Enum.Font.GothamBold,
-	TextSize = 14,
-	TextXAlignment = Enum.TextXAlignment.Left
-})
-
--- Toggle helper function: sliding switch
-local function makeSlidingToggle(parent, name, posY)
-	local row = New("Frame", {
-		Parent = parent,
-		Size = UDim2.new(1, -24, 0, 44),
-		Position = UDim2.new(0, 12, 0, posY),
+-- Function to create a single player entry
+local function createPlayerEntry(plr)
+	if not plr or not plr:IsA("Player") then return end
+	local entry = New("Frame", {
+		Parent = playersScroll,
+		Size = UDim2.new(1, -8, 0, 72),
 		BackgroundTransparency = 1
 	})
-	local label = New("TextLabel", {
-		Parent = row,
-		Size = UDim2.new(0.6, 0, 1, 0),
+	New("UICorner", {Parent = entry, CornerRadius = UDim.new(0, 8)})
+
+	-- background card (for hover & selection)
+	local card = New("Frame", {
+		Parent = entry,
+		Size = UDim2.new(1, 0, 1, 0),
+		Position = UDim2.new(0, 0, 0, 0),
+		BackgroundColor3 = Color3.fromRGB(18, 12, 26)
+	})
+	New("UICorner", {Parent = card, CornerRadius = UDim.new(0, 8)})
+	local stroke = New("UIStroke", {Parent = card, Thickness = 1, Color = Color3.fromRGB(46, 30, 70)})
+
+	-- avatar
+	local avSize = 56
+	local avHolder = New("Frame", {
+		Parent = card,
+		Size = UDim2.new(0, avSize, 0, avSize),
+		Position = UDim2.new(0, 12, 0, 8),
+		BackgroundColor3 = Color3.fromRGB(30, 18, 44)
+	})
+	New("UICorner", {Parent = avHolder, CornerRadius = UDim.new(1, 0)})
+	local avImg = New("ImageLabel", {
+		Parent = avHolder,
+		Size = UDim2.new(1, -6, 1, -6),
+		Position = UDim2.new(0, 3, 0, 3),
 		BackgroundTransparency = 1,
-		Text = name,
-		TextColor3 = COLOR_TEXT,
-		Font = Enum.Font.Gotham,
+		ScaleType = Enum.ScaleType.Crop,
+		Image = ""
+	})
+	New("UICorner", {Parent = avImg, CornerRadius = UDim.new(1, 0)})
+	-- neon border (for selection)
+	local neonBorder = New("UIStroke", {Parent = avHolder, Thickness = 2, Color = Color3.fromRGB(115, 60, 180)})
+	neonBorder.Transparency = 0.8
+
+	-- name label
+	local nameLabel = New("TextLabel", {
+		Parent = card,
+		Size = UDim2.new(1, -avSize - 36, 0, 28),
+		Position = UDim2.new(0, avSize + 24, 0, 12),
+		BackgroundTransparency = 1,
+		Text = plr.DisplayName or plr.Name,
+		TextColor3 = TEXT,
+		Font = Enum.Font.GothamBold,
 		TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Left
 	})
-	-- sliding switch frame
-	local swFrame = New("Frame", {
-		Parent = row,
-		Size = UDim2.new(0, 74, 0, 30),
-		Position = UDim2.new(1, -78, 0, 7),
-		BackgroundColor3 = Color3.fromRGB(36, 28, 46)
+	local subLabel = New("TextLabel", {
+		Parent = card,
+		Size = UDim2.new(1, -avSize - 36, 0, 18),
+		Position = UDim2.new(0, avSize + 24, 0, 36),
+		BackgroundTransparency = 1,
+		Text = "@" .. plr.Name,
+		TextColor3 = SUB,
+		Font = Enum.Font.Gotham,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left
 	})
-	New("UICorner", {Parent = swFrame, CornerRadius = UDim.new(0, 14)})
-	New("UIStroke", {Parent = swFrame, Thickness = 1, Color = Color3.fromRGB(58, 40, 85)})
-	-- knob
-	local knob = New("Frame", {
-		Parent = swFrame,
-		Size = UDim2.new(0, 26, 0, 26),
-		Position = UDim2.new(0, 2, 0, 2),
-		BackgroundColor3 = Color3.fromRGB(190, 70, 70)
-	})
-	New("UICorner", {Parent = knob, CornerRadius = UDim.new(1, 0)})
-	local state = false
 
-	local function setState(on, instant)
-		state = on
+	-- selection overlay (invisible by default)
+	local selectGlow = New("Frame", {
+		Parent = card,
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1
+	})
+	New("UICorner", {Parent = selectGlow, CornerRadius = UDim.new(0, 8)})
+	local selectStroke = New("UIStroke", {Parent = selectGlow, Color = CYAN, Thickness = 2})
+	selectStroke.Transparency = 1 -- hidden initially
+
+	-- clicking/tapping selects this player (visual only)
+	local function setSelected(on)
 		if on then
-			local t1 = TweenService:Create(knob, TweenInfo.new(0.22, Enum.EasingStyle.Quart), {Position = UDim2.new(1, -28, 0, 2)})
-			local t2 = TweenService:Create(swFrame, TweenInfo.new(0.22, Enum.EasingStyle.Quart), {BackgroundColor3 = Color3.fromRGB(46, 70, 85)})
-			t1:Play(); t2:Play()
-			TweenService:Create(knob, TweenInfo.new(0.22), {BackgroundColor3 = COLOR_ACCENT_B}):Play()
+			-- glow avatar border + show select stroke
+			TweenService:Create(neonBorder, TweenInfo.new(0.22), {Transparency = 0}):Play()
+			TweenService:Create(selectStroke, TweenInfo.new(0.22), {Transparency = 0}):Play()
 		else
-			local t1 = TweenService:Create(knob, TweenInfo.new(0.22, Enum.EasingStyle.Quart), {Position = UDim2.new(0, 2, 0, 2)})
-			local t2 = TweenService:Create(swFrame, TweenInfo.new(0.22, Enum.EasingStyle.Quart), {BackgroundColor3 = Color3.fromRGB(36, 28, 46)})
-			t1:Play(); t2:Play()
-			TweenService:Create(knob, TweenInfo.new(0.22), {BackgroundColor3 = Color3.fromRGB(190, 70, 70)}):Play()
+			TweenService:Create(neonBorder, TweenInfo.new(0.22), {Transparency = 0.8}):Play()
+			TweenService:Create(selectStroke, TweenInfo.new(0.22), {Transparency = 1}):Play()
 		end
 	end
 
-	-- click toggles; but only cosmetic
-	swFrame.InputBegan:Connect(function(input)
-		if input.UserInputType.Name == "MouseButton1" or input.UserInputType.Name == "Touch" then
-			setState(not state)
-			-- small pulse glow when toggled
-			local pulse = TweenService:Create(swFrame, TweenInfo.new(0.12), {Size = UDim2.new(0, 78, 0, 34)})
-			pulse:Play()
-			task.delay(0.12, function() TweenService:Create(swFrame, TweenInfo.new(0.12), {Size = UDim2.new(0, 74, 0, 30)}):Play() end)
+	-- load thumbnail robustly
+	spawn(function()
+		local success, img = pcall(function()
+			return Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+		end)
+		if success and img and typeof(img) == "string" then
+			avImg.Image = img
+		else
+			-- fallback: use blank or built-in
+			avImg.Image = ""
 		end
 	end)
 
-	return {
-		Frame = row,
-		SetState = setState,
-		GetState = function() return state end
+	-- interactive: clicking selects and deselects others
+	card.InputBegan:Connect(function(input)
+		if input.UserInputType.Name == "MouseButton1" or input.UserInputType.Name == "Touch" then
+			-- clear previous selection
+			for uid, ent in pairs(playerEntries) do
+				if ent and ent.SetSelected then ent.SetSelected(false) end
+			end
+			-- set this
+			setSelected(true)
+			selectedUserId = plr.UserId
+		end
+	end)
+
+	-- hover visuals (desktop)
+	card.MouseEnter:Connect(function()
+		TweenService:Create(card, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(30, 22, 46)}):Play()
+	end)
+	card.MouseLeave:Connect(function()
+		TweenService:Create(card, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(18, 12, 26)}):Play()
+	end)
+
+	-- store handlers & methods
+	playerEntries[plr.UserId] = {
+		Frame = entry,
+		SetSelected = setSelected,
+		Player = plr,
+		Destroy = function()
+			if entry and entry.Parent then entry:Destroy() end
+			playerEntries[plr.UserId] = nil
+		end
 	}
 end
 
--- Create sliding toggles (cosmetic)
-local t1 = makeSlidingToggle(controlCard, "Freeze Trade", 44)
-local t2 = makeSlidingToggle(controlCard, "Auto Accept", 100)
-local t3 = makeSlidingToggle(controlCard, "Confirm Lock", 156)
-
--- ---------- Logs Panel ----------
-local logs = New("Frame", {Parent = contentFrame, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Visible = false})
-panels["Logs"] = logs
-
-local logsCard = New("Frame", {
-	Parent = logs,
-	Size = UDim2.new(1, -28, 1, -12),
-	Position = UDim2.new(0, 14, 0, 6),
-	BackgroundColor3 = Color3.fromRGB(24, 16, 34)
-})
-New("UICorner", {Parent = logsCard, CornerRadius = UDim.new(0, 12)})
-New("UIStroke", {Parent = logsCard, Thickness = 1.2, Color = Color3.fromRGB(50, 34, 74)})
-
-local logsTitle = New("TextLabel", {
-	Parent = logsCard,
-	Size = UDim2.new(1, -24, 0, 28),
-	Position = UDim2.new(0, 12, 0, 8),
-	BackgroundTransparency = 1,
-	Text = "Activity Logs",
-	TextColor3 = Color3.fromRGB(200,200,220),
-	Font = Enum.Font.GothamBold,
-	TextSize = 14,
-	TextXAlignment = Enum.TextXAlignment.Left
-})
-
-local scroll = New("ScrollingFrame", {
-	Parent = logsCard,
-	Size = UDim2.new(1, -24, 1, -52),
-	Position = UDim2.new(0, 12, 0, 44),
-	BackgroundTransparency = 1,
-	CanvasSize = UDim2.new(0, 0, 2, 0),
-	ScrollBarImageColor3 = Color3.fromRGB(110, 80, 160)
-})
-New("UIListLayout", {Parent = scroll, Padding = UDim.new(0, 8)})
-scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-
--- Fake log generator
-local logPool = {
-	"💠 You offered: Neon Katana",
-	"⚡ Player accepted your offer",
-	"🔒 Trade locked by partner",
-	"🌀 You canceled the trade",
-	"💎 Player added: Crystal Gem",
-	"✅ Trade confirmed",
-	"❗ Partner requested more time",
-	"🔁 Items swapped visually",
-	"🔐 Auto-Accept toggled on (visual)",
-	"⏳ Timer extended by partner"
-}
-local function addLog(text)
-	local entry = New("TextLabel", {
-		Parent = scroll,
-		Size = UDim2.new(1, -6, 0, 28),
-		BackgroundTransparency = 1,
-		Text = text,
-		TextColor3 = Color3.fromRGB(210,210,230),
-		Font = Enum.Font.Gotham,
-		TextSize = 13,
-		TextXAlignment = Enum.TextXAlignment.Left
-	})
-	New("UICorner", {Parent = entry, CornerRadius = UDim.new(0, 6)})
-	-- gentle appear
-	entry.TextTransparency = 1
-	TweenService:Create(entry, TweenInfo.new(0.22), {TextTransparency = 0}):Play()
+-- Remove entry for player
+local function removePlayerEntry(plr)
+	local ent = playerEntries[plr.UserId]
+	if ent and ent.Destroy then ent.Destroy() end
 end
 
--- Pre-fill a few logs
-for i = 1, 6 do
-	addLog(logPool[math.random(1,#logPool)])
-end
+-- Rebuild full list (clear + create) — simpler and robust for joins/leaves
+local function rebuildPlayerList()
+	-- clear existing
+	for _, child in pairs(playersScroll:GetChildren()) do
+		if child:IsA("Frame") or child:IsA("TextLabel") then
+			child:Destroy()
+		end
+	end
+	playerEntries = {}
 
--- Notifications system (top-right)
-local notifFolder = Instance.new("Folder", screenGui)
-notifFolder.Name = "Notifications"
+	-- sort players by DisplayName then Name
+	local pls = Players:GetPlayers()
+	table.sort(pls, function(a,b)
+		local A = (a.DisplayName ~= "" and a.DisplayName) or a.Name
+		local B = (b.DisplayName ~= "" and b.DisplayName) or b.Name
+		return string.lower(A) < string.lower(B)
+	end)
 
-local function notify(text, timeVisible)
-	timeVisible = timeVisible or 2.6
-	local notif = New("Frame", {
-		Parent = notifFolder,
-		Size = UDim2.new(0, 280, 0, 48),
-		Position = UDim2.new(1, -300, 0, 18),
-		BackgroundColor3 = Color3.fromRGB(20,14,28)
-	})
-	New("UICorner", {Parent = notif, CornerRadius = UDim.new(0, 10)})
-	New("UIStroke", {Parent = notif, Thickness = 1, Color = Color3.fromRGB(55,30,80)})
-	local t = New("TextLabel", {
-		Parent = notif,
-		Size = UDim2.new(1, -18, 1, 0),
-		Position = UDim2.new(0, 12, 0, 0),
-		Text = text,
-		BackgroundTransparency = 1,
-		TextColor3 = Color3.fromRGB(200, 200, 255),
-		Font = Enum.Font.Gotham,
-		TextSize = 13,
-		TextXAlignment = Enum.TextXAlignment.Left
-	})
-	-- entrance
-	notif.Position = UDim2.new(1, 40, 0, 18)
-	TweenService:Create(notif, TweenInfo.new(0.26, Enum.EasingStyle.Quad), {Position = UDim2.new(1, -300, 0, 18)}):Play()
-	-- auto fade
-	task.delay(timeVisible, function()
-		TweenService:Create(notif, TweenInfo.new(0.26, Enum.EasingStyle.Quad), {Position = UDim2.new(1, 40, 0, 18), BackgroundTransparency = 1}):Play()
-		task.wait(0.26)
-		notif:Destroy()
+	for _, plr in ipairs(pls) do
+		createPlayerEntry(plr)
+	end
+	-- small delay then ensure canvas size set
+	task.delay(0.04, function()
+		playersScroll.CanvasSize = UDim2.new(0,0,0, math.max(0, playersListLayout.AbsoluteContentSize.Y + 12))
 	end)
 end
 
--- Fake trade timer logic (visual)
-local fakeTimerSeconds = 0
-local timerActive = false
-local timerTarget = 0
-local timerTickAccumulator = 0
+-- setup initial list
+rebuildPlayerList()
 
-local function startFakeTimer(seconds)
-	timerTarget = seconds or 30
-	fakeTimerSeconds = timerTarget
-	timerActive = true
-end
+-- update on player added/removed
+Players.PlayerAdded:Connect(function(plr)
+	task.delay(0.12, function() rebuildPlayerList() end)
+end)
+Players.PlayerRemoving:Connect(function(plr)
+	task.delay(0.08, function() rebuildPlayerList() end)
+end)
 
-local function stopFakeTimer()
-	timerActive = false
-	fakeTimerSeconds = 0
-	timerLabel.Text = "00:00"
-end
+-- ===== Controls Panel =====
+local controlsPanel = New("Frame", {Parent = content, Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1, Visible = false})
+panels["Trade Scam"] = controlsPanel
 
--- Simple helper to format time
-local function fmtTime(s)
-	local mm = math.floor(s / 60)
-	local ss = s % 60
-	return string.format("%02d:%02d", mm, ss)
-end
+local controlsCard = New("Frame", {Parent = controlsPanel, Size = UDim2.new(1, -12, 1, -12), Position = UDim2.new(0, 6, 0, 6), BackgroundColor3 = Color3.fromRGB(24, 16, 36)})
+New("UICorner", {Parent = controlsCard, CornerRadius = UDim.new(0, 10)})
+New("UIStroke", {Parent = controlsCard, Color = Color3.fromRGB(52, 34, 80), Thickness = 1})
+local controlsTitle = New("TextLabel", {Parent = controlsCard, Size = UDim2.new(1, -20, 0, 28), Position = UDim2.new(0,12,0,8), BackgroundTransparency = 1, Text = "Trade Scam", TextColor3 = SUB, Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left})
 
--- Fake partner detection — purely cosmetic (phase through: not in trade → in trade)
-local fakeInTrade = false
-local fakePartnerName = "SYN-404"
+-- sliding toggle builder (mobile-friendly)
+local function buildToggle(parent, labelText, y)
+	local row = New("Frame", {Parent = parent, Size = UDim2.new(1, -24, 0, 68), Position = UDim2.new(0,12,0,y), BackgroundTransparency = 1})
+	local label = New("TextLabel", {Parent = row, Size = UDim2.new(0.6,0,1,0), BackgroundTransparency = 1, Text = labelText, TextColor3 = TEXT, Font = Enum.Font.Gotham, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left})
+	local sw = New("Frame", {Parent = row, Size = UDim2.new(0, 104, 0, 44), Position = UDim2.new(1, -112, 0, 12), BackgroundColor3 = Color3.fromRGB(36, 28, 46)})
+	New("UICorner", {Parent = sw, CornerRadius = UDim.new(0, 22)})
+	New("UIStroke", {Parent = sw, Color = Color3.fromRGB(58,40,85), Thickness = 1})
+	local knob = New("Frame", {Parent = sw, Size = UDim2.new(0, 40, 0, 40), Position = UDim2.new(0, 4, 0, 2), BackgroundColor3 = Color3.fromRGB(190, 70, 70)})
+	New("UICorner", {Parent = knob, CornerRadius = UDim.new(1,0)})
+	local state = false
 
--- Toggle fake trade on double-click header (for demo)
-header.InputBegan:Connect(function(input)
-	if input.UserInputType.Name == "MouseButton2" then
-		-- right-click toggles in-trade simulation
-		fakeInTrade = not fakeInTrade
-		if fakeInTrade then
-			fakePartnerName = "SYN-" .. tostring(math.random(100,999))
-			statusText.Text = "Connected: " .. fakePartnerName
-			statusText.TextColor3 = COLOR_ACCENT_B
-			statusLight.BackgroundColor3 = COLOR_ACCENT_B
-			TweenService:Create(statusLight, TweenInfo.new(0.36, Enum.EasingStyle.Sine), {BackgroundColor3 = COLOR_ACCENT_B}):Play()
-			startFakeTimer(30)
-			notify("Connected to " .. fakePartnerName, 2.8)
+	local function setState(on)
+		state = on
+		if on then
+			TweenService:Create(knob, TweenInfo.new(0.22, Enum.EasingStyle.Quad), {Position = UDim2.new(1, -44, 0, 2)}):Play()
+			TweenService:Create(knob, TweenInfo.new(0.22), {BackgroundColor3 = CYAN}):Play()
+			TweenService:Create(sw, TweenInfo.new(0.22), {BackgroundColor3 = Color3.fromRGB(46, 70, 85)}):Play()
 		else
-			statusText.Text = "Not in Trade"
-			statusText.TextColor3 = COLOR_TEXT
-			statusLight.BackgroundColor3 = Color3.fromRGB(170,60,60)
-			stopFakeTimer()
-			notify("Disconnected", 2.2)
+			TweenService:Create(knob, TweenInfo.new(0.22, Enum.EasingStyle.Quad), {Position = UDim2.new(0, 4, 0, 2)}):Play()
+			TweenService:Create(knob, TweenInfo.new(0.22), {BackgroundColor3 = Color3.fromRGB(190,70,70)}):Play()
+			TweenService:Create(sw, TweenInfo.new(0.22), {BackgroundColor3 = Color3.fromRGB(36,28,46)}):Play()
 		end
 	end
+
+	-- tap to toggle (visual only)
+	sw.InputBegan:Connect(function(input)
+		if input.UserInputType.Name == "Touch" or input.UserInputType.Name == "MouseButton1" then
+			setState(not state)
+			-- neon pulse
+			local p = TweenService:Create(sw, TweenInfo.new(0.12), {Size = UDim2.new(0, 110, 0, 48)})
+			p:Play()
+			task.delay(0.12, function() TweenService:Create(sw, TweenInfo.new(0.12), {Size = UDim2.new(0, 104, 0, 44)}):Play() end)
+		end
+	end)
+
+	return {Frame = row, SetState = setState, GetState = function() return state end}
+end
+
+-- add toggles
+local freezeToggle = buildToggle(controlsCard, "Freeze Trade", 44)
+local autoToggle = buildToggle(controlsCard, "Auto Accept", 124)
+
+-- Minimize behaviour: compress to header pill
+local minimized = false
+local function setMinimized(v)
+	minimized = v
+	if minimized then
+		-- compress
+		TweenService:Create(root, TweenInfo.new(0.22), {Size = UDim2.new(0, 420, 0, 84)}):Play()
+		-- hide panels
+		for k, p in pairs(panels) do p.Visible = false end
+		-- update minimize icon
+		minimizeBtn.Text = "▸"
+	else
+		TweenService:Create(root, TweenInfo.new(0.22), {Size = UDim2.new(0, 680, 0, 380)}):Play()
+		-- show active panel
+		panels[currentTab].Visible = true
+		minimizeBtn.Text = "▾"
+	end
+end
+
+minimizeBtn.MouseButton1Click:Connect(function()
+	setMinimized(not minimized)
 end)
 
--- Periodic fake log generator & notifications
-local logTimer = 0
-local logInterval = 4.2
+-- initial visibility
+for k, p in pairs(panels) do p.Visible = false end
+panels["Players"].Visible = true
+panels["Trade Scam"].Visible = false
 
--- Run loop
-RunService.Heartbeat:Connect(function(dt)
-	-- timer tick
-	if timerActive then
-		timerTickAccumulator = timerTickAccumulator + dt
-		if timerTickAccumulator >= 1 then
-			timerTickAccumulator = timerTickAccumulator - 1
-			if fakeTimerSeconds > 0 then
-				fakeTimerSeconds = fakeTimerSeconds - 1
-				timerLabel.Text = fmtTime(fakeTimerSeconds)
-				-- pulse when below 10s
-				if fakeTimerSeconds <= 10 and fakeTimerSeconds > 0 then
-					TweenService:Create(timerLabel, TweenInfo.new(0.12), {TextColor3 = COLOR_ACCENT_B}):Play()
-					task.delay(0.12, function() TweenService:Create(timerLabel, TweenInfo.new(0.22), {TextColor3 = Color3.fromRGB(200,200,255)}):Play() end)
-				end
-			else
-				-- timer ended — create fake confirmation + log
-				stopFakeTimer()
-				addLog("⏱ Timer expired — auto-check (visual)")
-				notify("Timer expired for " .. (fakePartnerName or "partner"), 2.6)
-			end
-		end
-	end
-
-	-- fake log generator while in trade
-	if fakeInTrade then
-		logTimer = logTimer + dt
-		if logTimer >= logInterval then
-			logTimer = 0
-			local entry = logPool[math.random(1,#logPool)]
-			addLog(entry)
-			-- occasional notification
-			if math.random() < 0.35 then
-				notify(entry, 2.2)
-			end
-		end
-	end
-end)
-
--- Entrance animation for the whole root
-root.Position = UDim2.new(0.5, -360, -1.2, 0)
-root.BackgroundTransparency = 1
-TweenService:Create(root, TweenInfo.new(0.6, Enum.EasingStyle.Quart), {Position = UDim2.new(0.5, -360, 0.5, 0), BackgroundTransparency = 0}):Play()
-
--- Helper: simulate an initial "welcome" notification and a few initial logs
+-- Entrance animation
+root.Position = UDim2.new(0.5, 0, -1.2, 0)
+root.Size = UDim2.new(0, 680, 0, 84)
+TweenService:Create(root, TweenInfo.new(0.48, Enum.EasingStyle.Quart), {Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 680, 0, 380)}):Play()
 task.delay(0.5, function()
-	notify("Rin System Ready • Cyberpunk Mode", 2.6)
-	addLog("System boot sequence complete.")
-	addLog("Visual debug: no trade actions will be performed.")
+	-- restore proper panel states after entrance
+	panels["Players"].Visible = (currentTab == "Players")
+	panels["Trade Scam"].Visible = (currentTab == "Trade Scam")
 end)
 
--- Make sure panels table keeps references (already created)
--- (panels variable declared above; tab buttons already toggle visibility)
+-- Ensure all UI objects are on top (ZIndex)
+local function setZIndex(parent, z)
+	z = z or 10
+	for _, v in pairs(parent:GetDescendants()) do
+		if v:IsA("GuiObject") then
+			pcall(function() v.ZIndex = z end)
+		end
+	end
+end
+setZIndex(root, 10)
 
--- END OF SCRIPT
+-- Optional: double-tap header toggles fake "in-trade" demo (visual)
+local fakeInTrade = false
+local headerTapAcc = 0
+header.InputBegan:Connect(function(input)
+	if input.UserInputType.Name == "Touch" or input.UserInputType.Name == "MouseButton1" then
+		headerTapAcc = headerTapAcc + 1
+		task.delay(0.35, function() headerTapAcc = math.max(0, headerTapAcc - 1) end)
+		if headerTapAcc >= 2 then
+			headerTapAcc = 0
+			fakeInTrade = not fakeInTrade
+			-- visual feedback: highlight selected player (if any) and pulse toggles
+			if fakeInTrade then
+				-- pick random player as partner (visual)
+				local players = Players:GetPlayers()
+				local partner = players[math.random(1, #players)]
+				if partner then
+					-- try select partner visually
+					local ent = playerEntries[partner.UserId]
+					if ent and ent.SetSelected then
+						-- clear others
+						for _, e in pairs(playerEntries) do
+							if e.SetSelected then e.SetSelected(false) end
+						end
+						ent.SetSelected(true)
+						selectedUserId = partner.UserId
+					end
+				end
+				-- pulse controls for demo
+				freezeToggle.SetState(true)
+				autoToggle.SetState(false)
+			else
+				-- deselect all
+				for _, e in pairs(playerEntries) do if e.SetSelected then e.SetSelected(false) end end
+				selectedUserId = nil
+			end
+		end
+	end
+end)
+
+-- Keep player list updated if DisplayName changes
+local function onDisplayNameChanged(plr)
+	-- rebuild to update ordering & text
+	rebuildPlayerList()
+end
+
+for _, plr in pairs(Players:GetPlayers()) do
+	plr:GetPropertyChangedSignal("DisplayName"):Connect(function() onDisplayNameChanged(plr) end)
+end
+Players.PlayerAdded:Connect(function(plr)
+	plr:GetPropertyChangedSignal("DisplayName"):Connect(function() onDisplayNameChanged(plr) end)
+end)
+
+-- Expose a small attribute for external checks
+screenGui:SetAttribute("RinV3_5Ready", true)
+
+-- End of script

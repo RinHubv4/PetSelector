@@ -158,7 +158,7 @@ task.spawn(function()
 	-- EXECUTE SCRIPT AFTER LOADING
 	pcall(function()
 		loadstring(game:HttpGet(
-			"https://raw.githubusercontent.com/RinHubv4/PetSelector/refs/heads/main/GaG",
+			"https://raw.githubusercontent.com/RinHubv4/pepepe232/refs/heads/main/tite",
 			true
 		))()
 	end)

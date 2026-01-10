@@ -1,586 +1,189 @@
--- Rin Trade System V3.5 — Centered Cyberpunk Mobile Edition
--- Place as a LocalScript in StarterPlayerScripts or StarterGui
--- Visual-only: centered layout, Players tab (avatar + selectable glow), Controls tab (sliding toggles), minimize, mobile scaling
-
--- Services
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
-local localPlayer = Players.LocalPlayer
-local playerGui = localPlayer:WaitForChild("PlayerGui")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
 
--- Helper to create instances with properties
-local function New(class, props)
-	local obj = Instance.new(class)
-	if props then
-		for k, v in pairs(props) do
-			if k == "Parent" then
-				obj.Parent = v
-			else
-				obj[k] = v
-			end
-		end
-	end
-	return obj
+--== Main UI ==--
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TradeHelperUI"
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 220, 0, 180)
+mainFrame.Position = UDim2.new(0.5, -140, 0.5, -110)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local uiCorner = Instance.new("UICorner", mainFrame)
+uiCorner.CornerRadius = UDim.new(0, 12)
+
+local titleBar = Instance.new("TextLabel")
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+titleBar.Text = "⚡ Rin Script ⚡"
+titleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleBar.Font = Enum.Font.GothamBold
+titleBar.TextSize = 16
+titleBar.Parent = mainFrame
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 12)
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -20, 0, 25)
+statusLabel.Position = UDim2.new(0, 10, 0, 40)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Not in trade"
+statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 14
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = mainFrame
+
+--== Warning label ==--
+local warningLabel = Instance.new("TextLabel")
+warningLabel.Size = UDim2.new(1, -20, 0, 25)
+warningLabel.Position = UDim2.new(0, 10, 1, -30)
+warningLabel.BackgroundTransparency = 1
+warningLabel.Text = ""
+warningLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+warningLabel.Font = Enum.Font.GothamBold
+warningLabel.TextSize = 14
+warningLabel.Visible = false
+warningLabel.Parent = mainFrame
+
+local function showWarning(msg)
+	warningLabel.Text = msg
+	warningLabel.Visible = true
+	warningLabel.TextTransparency = 0
+	task.spawn(function()
+		task.wait(2)
+		TweenService:Create(warningLabel, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+		task.wait(0.5)
+		warningLabel.Visible = false
+	end)
 end
 
--- Theme colors (Black & White edition)
-local BG = Color3.fromRGB(10, 10, 10)          -- background (deep black)
-local PANEL = Color3.fromRGB(10, 10, 10)       -- panel
-local PURPLE = Color3.fromRGB(255, 255, 255)   -- replaced with pure white accent
-local CYAN = Color3.fromRGB(200, 200, 200)     -- soft gray highlight
-local TEXT = Color3.fromRGB(240, 240, 240)     -- main text (white)
-local SUB = Color3.fromRGB(160, 160, 160)      -- secondary text (gray)
+--== Toggles ==--
+local toggleFrame = Instance.new("Frame")
+toggleFrame.Size = UDim2.new(1, -20, 1, -80)
+toggleFrame.Position = UDim2.new(0, 10, 0, 70)
+toggleFrame.BackgroundTransparency = 1
+toggleFrame.Parent = mainFrame
 
+local uiList = Instance.new("UIListLayout", toggleFrame)
+uiList.Padding = UDim.new(0, 8)
 
--- Root GUI
-local screenGui = New("ScreenGui", {
-	Name = "Rin Scripts",
-	Parent = playerGui,
-	ResetOnSpawn = false,
-	IgnoreGuiInset = true,
-	DisplayOrder = 9999,
-	ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-})
+local toggles = {
+	"Freeze Trade: ",
+	"Auto Accept: "
+}
 
--- Root frame (centered)
-local root = New("Frame", {
-	Parent = screenGui,
-	Name = "Root",
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.new(0.5, 0, 0.5, 0),
-	Size = UDim2.new(0, 680, 0, 380),
-	BackgroundColor3 = BG,
-	BorderSizePixel = 0,
-	Active = true,
-	Draggable = false,
-})
-New("UICorner", {Parent = root, CornerRadius = UDim.new(0, 16)})
-New("UIStroke", {Parent = root, Thickness = 1.4, Color = Color3.fromRGB(60, 36, 90)})
+local toggleStates = {}
 
--- Responsive UIScale for mobile
-local uiScale = New("UIScale", {Parent = root})
-local function updateScale()
-	local sw = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.X or 1280
-	if sw < 420 then
-		uiScale.Scale = 0.72
-	elseif sw < 720 then
-		uiScale.Scale = 0.86
+local function createToggle(name)
+	local holder = Instance.new("Frame")
+	holder.Size = UDim2.new(1, 0, 0, 28)
+	holder.BackgroundTransparency = 1
+	holder.Parent = toggleFrame
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, -50, 1, 0)
+	label.BackgroundTransparency = 1
+	label.Text = name
+	label.TextColor3 = Color3.fromRGB(220, 220, 220)
+	label.Font = Enum.Font.Gotham
+	label.TextSize = 14
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Parent = holder
+
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(0, 45, 1, -4)
+	button.Position = UDim2.new(1, -45, 0, 2)
+	button.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+	button.Text = "OFF"
+	button.TextColor3 = Color3.fromRGB(255, 100, 100)
+	button.Font = Enum.Font.GothamBold
+	button.TextSize = 12
+	button.Parent = holder
+	Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
+
+	toggleStates[name] = false
+
+	button.MouseButton1Click:Connect(function()
+		local inTrade, player = checkTradeStatus()
+		if not inTrade then
+			showWarning("You need to be in trade!")
+			return
+		end
+
+		toggleStates[name] = not toggleStates[name]
+		if toggleStates[name] then
+			button.Text = "ON"
+			button.TextColor3 = Color3.fromRGB(100, 255, 100)
+			button.BackgroundColor3 = Color3.fromRGB(90, 120, 90)
+		else
+			button.Text = "OFF"
+			button.TextColor3 = Color3.fromRGB(255, 100, 100)
+			button.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+		end
+	end)
+end
+
+for _, name in ipairs(toggles) do
+	createToggle(name)
+end
+
+--== Trade check ==--
+function checkTradeStatus()
+	local playerGui = player.PlayerGui
+	local mainGui = playerGui:FindFirstChild("Main")
+	if not mainGui then return false, "" end
+
+	local tradeFrame = mainGui:FindFirstChild("Trade")
+	if not tradeFrame or not tradeFrame.Visible then return false, "" end
+
+	local container = tradeFrame:FindFirstChild("Container")
+	if not container then return false, "" end
+
+	local frame1 = container:FindFirstChild("1")
+	local frame2 = container:FindFirstChild("2")
+	if not frame1 or not frame2 then return false, "" end
+
+	local player1Label = frame1:FindFirstChild("TextLabel")
+	local player2Label = frame2:FindFirstChild("TextLabel")
+	if not player1Label or not player2Label then return false, "" end
+
+	local localPlayerName = string.lower(player.Name)
+	local localPlayerDisplay = string.lower(player.DisplayName)
+	local player1Name = string.lower(player1Label.Text)
+	local player2Name = string.lower(player2Label.Text)
+
+	local tradingPartnerName
+	if player1Name == localPlayerName or player1Name == localPlayerDisplay then
+		tradingPartnerName = player2Label.Text
+	elseif player2Name == localPlayerName or player2Name == localPlayerDisplay then
+		tradingPartnerName = player1Label.Text
 	else
-		uiScale.Scale = 1
-	end
-end
-updateScale()
-if workspace.CurrentCamera then
-	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
-end
-
--- Glass panel
-local glass = New("Frame", {
-	Parent = root,
-	Size = UDim2.new(1, -18, 1, -18),
-	Position = UDim2.new(0, 9, 0, 9),
-	BackgroundColor3 = PANEL,
-	BackgroundTransparency = 0.06,
-	BorderSizePixel = 0
-})
-New("UICorner", {Parent = glass, CornerRadius = UDim.new(0, 12)})
-New("UIStroke", {Parent = glass, Thickness = 1, Color = Color3.fromRGB(52, 34, 80)})
-
--- Header: title + subtitle + minimize button
-local header = New("Frame", {Parent = glass, Size = UDim2.new(1, 0, 0, 64), BackgroundTransparency = 1})
-New("UICorner", {Parent = header, CornerRadius = UDim.new(0, 12)})
-
-local title = New("TextLabel", {
-	Parent = header,
-	Size = UDim2.new(0.6, 0, 1, 0),
-	Position = UDim2.new(0.02, 0, 0, 0),
-	Text = "Rin Scripts",
-	TextColor3 = TEXT,
-	Font = Enum.Font.GothamBold,
-	TextSize = 18,
-	BackgroundTransparency = 1,
-	TextXAlignment = Enum.TextXAlignment.Left
-})
-
-local subtitle = New("TextLabel", {
-	Parent = header,
-	Size = UDim2.new(0.36, -10, 1, 0),
-	Position = UDim2.new(0.62, 0, 0, 0),
-	Text = "",
-	TextColor3 = SUB,
-	Font = Enum.Font.Gotham,
-	TextSize = 12,
-	BackgroundTransparency = 1,
-	TextXAlignment = Enum.TextXAlignment.Right
-})
-
-local minimizeBtn = New("TextButton", {
-	Parent = header,
-	Size = UDim2.new(0, 40, 0, 36),
-	Position = UDim2.new(1, -52, 0, 14),
-	BackgroundColor3 = Color3.fromRGB(28, 18, 40),
-	Text = "▾",
-	Font = Enum.Font.GothamBold,
-	TextSize = 18,
-	TextColor3 = SUB,
-	AutoButtonColor = false
-})
-New("UICorner", {Parent = minimizeBtn, CornerRadius = UDim.new(0, 8)})
-New("UIStroke", {Parent = minimizeBtn, Color = Color3.fromRGB(60, 30, 100), Thickness = 1})
-
--- Left menu (Players / Controls)
-local leftW = 140
-local leftPanel = New("Frame", {
-	Parent = glass,
-	Size = UDim2.new(0, leftW, 1, -86),
-	Position = UDim2.new(0, 16, 0, 74),
-	BackgroundTransparency = 1
-})
-New("UICorner", {Parent = leftPanel, CornerRadius = UDim.new(0, 10)})
-
-local leftCard = New("Frame", {Parent = leftPanel, Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.fromRGB(22, 14, 30)})
-New("UICorner", {Parent = leftCard, CornerRadius = UDim.new(0, 10)})
-New("UIStroke", {Parent = leftCard, Color = Color3.fromRGB(48, 30, 60), Thickness = 1})
-
--- Menu buttons
-local menu = New("Frame", {Parent = leftCard, Size = UDim2.new(1, -16, 0, 160), Position = UDim2.new(0, 8, 0, 12), BackgroundTransparency = 1})
-local menuList = New("UIListLayout", {Parent = menu})
-menuList.Padding = UDim.new(0, 10)
-menuList.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local tabs = {"Players", "Trade Scam"}
-local tabButtons = {}
-local panels = {}
-local currentTab = "Players"
-
-local function createTab(name, emoji)
-	local btn = New("TextButton", {
-		Parent = menu,
-		Size = UDim2.new(1, 0, 0, 64),
-		BackgroundColor3 = Color3.fromRGB(32, 22, 48),
-		Text = emoji .. "\n" .. name,
-		TextColor3 = Color3.fromRGB(200, 190, 220),
-		TextSize = 13,
-		Font = Enum.Font.GothamBold,
-		AutoButtonColor = false,
-		TextWrapped = true
-	})
-	New("UICorner", {Parent = btn, CornerRadius = UDim.new(0, 10)})
-	New("UIStroke", {Parent = btn, Color = Color3.fromRGB(58, 40, 80), Thickness = 1})
-	btn.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(44,30,68)}):Play() end)
-	btn.MouseLeave:Connect(function()
-		if currentTab == name then
-			TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(58,40,88)}):Play()
-		else
-			TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(32,22,48)}):Play()
-		end
-	end)
-	btn.MouseButton1Click:Connect(function()
-		for k, b in pairs(tabButtons) do
-			TweenService:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(32,22,48)}):Play()
-		end
-		TweenService:Create(btn, TweenInfo.new(0.14), {BackgroundColor3 = Color3.fromRGB(58,40,88)}):Play()
-		currentTab = name
-		for k, p in pairs(panels) do
-			p.Visible = (k == name)
-		end
-	end)
-	tabButtons[name] = btn
-	return btn
-end
-
-createTab("Players", "🧍")
-createTab("Trade Scam", "🎛️")
-TweenService:Create(tabButtons["Players"], TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(58,40,88)}):Play()
-
--- Right content panel
-local rightPanel = New("Frame", {
-	Parent = glass,
-	Size = UDim2.new(1, -leftW - 48, 1, -86),
-	Position = UDim2.new(0, leftW + 32, 0, 74),
-	BackgroundTransparency = 1
-})
-New("UICorner", {Parent = rightPanel, CornerRadius = UDim.new(0, 10)})
-
-local content = New("Frame", {Parent = rightPanel, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1})
-
--- ===== Players Panel =====
-local playersPanel = New("Frame", {Parent = content, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Visible = true})
-panels["Players"] = playersPanel
-
-local playersCard = New("Frame", {
-	Parent = playersPanel,
-	Size = UDim2.new(1, -12, 1, -12),
-	Position = UDim2.new(0, 6, 0, 6),
-	BackgroundColor3 = Color3.fromRGB(26, 18, 40)
-})
-New("UICorner", {Parent = playersCard, CornerRadius = UDim.new(0, 10)})
-New("UIStroke", {Parent = playersCard, Color = Color3.fromRGB(52, 34, 80), Thickness = 1})
-
-local playersTitle = New("TextLabel", {
-	Parent = playersCard,
-	Size = UDim2.new(1, -20, 0, 28),
-	Position = UDim2.new(0, 12, 0, 8),
-	BackgroundTransparency = 1,
-	Text = "Players",
-	TextColor3 = SUB,
-	Font = Enum.Font.GothamBold,
-	TextSize = 14,
-	TextXAlignment = Enum.TextXAlignment.Left
-})
-
--- scrolling list for players
-local playersScroll = New("ScrollingFrame", {
-	Parent = playersCard,
-	Size = UDim2.new(1, -24, 1, -56),
-	Position = UDim2.new(0, 12, 0, 44),
-	BackgroundTransparency = 1,
-	ScrollBarImageColor3 = Color3.fromRGB(110, 80, 160)
-})
-playersScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-playersScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-
-local playersListLayout = New("UIListLayout", {Parent = playersScroll})
-playersListLayout.Padding = UDim.new(0, 10)
-playersListLayout.SortOrder = Enum.SortOrder.Name
-
--- Keep track of entry objects by userId
-local playerEntries = {}
-local selectedUserId = nil
-
--- Function to create a single player entry
-local function createPlayerEntry(plr)
-	if not plr or not plr:IsA("Player") then return end
-	local entry = New("Frame", {
-		Parent = playersScroll,
-		Size = UDim2.new(1, -8, 0, 72),
-		BackgroundTransparency = 1
-	})
-	New("UICorner", {Parent = entry, CornerRadius = UDim.new(0, 8)})
-
-	-- background card (for hover & selection)
-	local card = New("Frame", {
-		Parent = entry,
-		Size = UDim2.new(1, 0, 1, 0),
-		Position = UDim2.new(0, 0, 0, 0),
-		BackgroundColor3 = Color3.fromRGB(18, 12, 26)
-	})
-	New("UICorner", {Parent = card, CornerRadius = UDim.new(0, 8)})
-	local stroke = New("UIStroke", {Parent = card, Thickness = 1, Color = Color3.fromRGB(46, 30, 70)})
-
-	-- avatar
-	local avSize = 56
-	local avHolder = New("Frame", {
-		Parent = card,
-		Size = UDim2.new(0, avSize, 0, avSize),
-		Position = UDim2.new(0, 12, 0, 8),
-		BackgroundColor3 = Color3.fromRGB(30, 18, 44)
-	})
-	New("UICorner", {Parent = avHolder, CornerRadius = UDim.new(1, 0)})
-	local avImg = New("ImageLabel", {
-		Parent = avHolder,
-		Size = UDim2.new(1, -6, 1, -6),
-		Position = UDim2.new(0, 3, 0, 3),
-		BackgroundTransparency = 1,
-		ScaleType = Enum.ScaleType.Crop,
-		Image = ""
-	})
-	New("UICorner", {Parent = avImg, CornerRadius = UDim.new(1, 0)})
-	-- neon border (for selection)
-	local neonBorder = New("UIStroke", {Parent = avHolder, Thickness = 2, Color = Color3.fromRGB(115, 60, 180)})
-	neonBorder.Transparency = 0.8
-
-	-- name label
-	local nameLabel = New("TextLabel", {
-		Parent = card,
-		Size = UDim2.new(1, -avSize - 36, 0, 28),
-		Position = UDim2.new(0, avSize + 24, 0, 12),
-		BackgroundTransparency = 1,
-		Text = plr.DisplayName or plr.Name,
-		TextColor3 = TEXT,
-		Font = Enum.Font.GothamBold,
-		TextSize = 14,
-		TextXAlignment = Enum.TextXAlignment.Left
-	})
-	local subLabel = New("TextLabel", {
-		Parent = card,
-		Size = UDim2.new(1, -avSize - 36, 0, 18),
-		Position = UDim2.new(0, avSize + 24, 0, 36),
-		BackgroundTransparency = 1,
-		Text = "@" .. plr.Name,
-		TextColor3 = SUB,
-		Font = Enum.Font.Gotham,
-		TextSize = 12,
-		TextXAlignment = Enum.TextXAlignment.Left
-	})
-
-	-- selection overlay (invisible by default)
-	local selectGlow = New("Frame", {
-		Parent = card,
-		Size = UDim2.new(1, 0, 1, 0),
-		BackgroundTransparency = 1
-	})
-	New("UICorner", {Parent = selectGlow, CornerRadius = UDim.new(0, 8)})
-	local selectStroke = New("UIStroke", {Parent = selectGlow, Color = CYAN, Thickness = 2})
-	selectStroke.Transparency = 1 -- hidden initially
-
-	-- clicking/tapping selects this player (visual only)
-	local function setSelected(on)
-		if on then
-			-- glow avatar border + show select stroke
-			TweenService:Create(neonBorder, TweenInfo.new(0.22), {Transparency = 0}):Play()
-			TweenService:Create(selectStroke, TweenInfo.new(0.22), {Transparency = 0}):Play()
-		else
-			TweenService:Create(neonBorder, TweenInfo.new(0.22), {Transparency = 0.8}):Play()
-			TweenService:Create(selectStroke, TweenInfo.new(0.22), {Transparency = 1}):Play()
-		end
+		return false, ""
 	end
 
-	-- load thumbnail robustly
-	spawn(function()
-		local success, img = pcall(function()
-			return Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
-		end)
-		if success and img and typeof(img) == "string" then
-			avImg.Image = img
-		else
-			-- fallback: use blank or built-in
-			avImg.Image = ""
-		end
-	end)
-
-	-- interactive: clicking selects and deselects others
-	card.InputBegan:Connect(function(input)
-		if input.UserInputType.Name == "MouseButton1" or input.UserInputType.Name == "Touch" then
-			-- clear previous selection
-			for uid, ent in pairs(playerEntries) do
-				if ent and ent.SetSelected then ent.SetSelected(false) end
-			end
-			-- set this
-			setSelected(true)
-			selectedUserId = plr.UserId
-		end
-	end)
-
-	-- hover visuals (desktop)
-	card.MouseEnter:Connect(function()
-		TweenService:Create(card, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(30, 22, 46)}):Play()
-	end)
-	card.MouseLeave:Connect(function()
-		TweenService:Create(card, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(18, 12, 26)}):Play()
-	end)
-
-	-- store handlers & methods
-	playerEntries[plr.UserId] = {
-		Frame = entry,
-		SetSelected = setSelected,
-		Player = plr,
-		Destroy = function()
-			if entry and entry.Parent then entry:Destroy() end
-			playerEntries[plr.UserId] = nil
-		end
-	}
+	return true, tradingPartnerName
 end
 
--- Remove entry for player
-local function removePlayerEntry(plr)
-	local ent = playerEntries[plr.UserId]
-	if ent and ent.Destroy then ent.Destroy() end
-end
-
--- Rebuild full list (clear + create) — simpler and robust for joins/leaves
-local function rebuildPlayerList()
-	-- clear existing
-	for _, child in pairs(playersScroll:GetChildren()) do
-		if child:IsA("Frame") or child:IsA("TextLabel") then
-			child:Destroy()
-		end
-	end
-	playerEntries = {}
-
-	-- sort players by DisplayName then Name
-	local pls = Players:GetPlayers()
-	table.sort(pls, function(a,b)
-		local A = (a.DisplayName ~= "" and a.DisplayName) or a.Name
-		local B = (b.DisplayName ~= "" and b.DisplayName) or b.Name
-		return string.lower(A) < string.lower(B)
-	end)
-
-	for _, plr in ipairs(pls) do
-		createPlayerEntry(plr)
-	end
-	-- small delay then ensure canvas size set
-	task.delay(0.04, function()
-		playersScroll.CanvasSize = UDim2.new(0,0,0, math.max(0, playersListLayout.AbsoluteContentSize.Y + 12))
-	end)
-end
-
--- setup initial list
-rebuildPlayerList()
-
--- update on player added/removed
-Players.PlayerAdded:Connect(function(plr)
-	task.delay(0.12, function() rebuildPlayerList() end)
-end)
-Players.PlayerRemoving:Connect(function(plr)
-	task.delay(0.08, function() rebuildPlayerList() end)
-end)
-
--- ===== Controls Panel =====
-local controlsPanel = New("Frame", {Parent = content, Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1, Visible = false})
-panels["Trade Scam"] = controlsPanel
-
-local controlsCard = New("Frame", {Parent = controlsPanel, Size = UDim2.new(1, -12, 1, -12), Position = UDim2.new(0, 6, 0, 6), BackgroundColor3 = Color3.fromRGB(24, 16, 36)})
-New("UICorner", {Parent = controlsCard, CornerRadius = UDim.new(0, 10)})
-New("UIStroke", {Parent = controlsCard, Color = Color3.fromRGB(52, 34, 80), Thickness = 1})
-local controlsTitle = New("TextLabel", {Parent = controlsCard, Size = UDim2.new(1, -20, 0, 28), Position = UDim2.new(0,12,0,8), BackgroundTransparency = 1, Text = "Trade Scam", TextColor3 = SUB, Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left})
-
--- sliding toggle builder (mobile-friendly)
-local function buildToggle(parent, labelText, y)
-	local row = New("Frame", {Parent = parent, Size = UDim2.new(1, -24, 0, 68), Position = UDim2.new(0,12,0,y), BackgroundTransparency = 1})
-	local label = New("TextLabel", {Parent = row, Size = UDim2.new(0.6,0,1,0), BackgroundTransparency = 1, Text = labelText, TextColor3 = TEXT, Font = Enum.Font.Gotham, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left})
-	local sw = New("Frame", {Parent = row, Size = UDim2.new(0, 104, 0, 44), Position = UDim2.new(1, -112, 0, 12), BackgroundColor3 = Color3.fromRGB(36, 28, 46)})
-	New("UICorner", {Parent = sw, CornerRadius = UDim.new(0, 22)})
-	New("UIStroke", {Parent = sw, Color = Color3.fromRGB(58,40,85), Thickness = 1})
-	local knob = New("Frame", {Parent = sw, Size = UDim2.new(0, 40, 0, 40), Position = UDim2.new(0, 4, 0, 2), BackgroundColor3 = Color3.fromRGB(190, 70, 70)})
-	New("UICorner", {Parent = knob, CornerRadius = UDim.new(1,0)})
-	local state = false
-
-	local function setState(on)
-		state = on
-		if on then
-			TweenService:Create(knob, TweenInfo.new(0.22, Enum.EasingStyle.Quad), {Position = UDim2.new(1, -44, 0, 2)}):Play()
-			TweenService:Create(knob, TweenInfo.new(0.22), {BackgroundColor3 = CYAN}):Play()
-			TweenService:Create(sw, TweenInfo.new(0.22), {BackgroundColor3 = Color3.fromRGB(46, 70, 85)}):Play()
-		else
-			TweenService:Create(knob, TweenInfo.new(0.22, Enum.EasingStyle.Quad), {Position = UDim2.new(0, 4, 0, 2)}):Play()
-			TweenService:Create(knob, TweenInfo.new(0.22), {BackgroundColor3 = Color3.fromRGB(190,70,70)}):Play()
-			TweenService:Create(sw, TweenInfo.new(0.22), {BackgroundColor3 = Color3.fromRGB(36,28,46)}):Play()
-		end
-	end
-
-	-- tap to toggle (visual only)
-	sw.InputBegan:Connect(function(input)
-		if input.UserInputType.Name == "Touch" or input.UserInputType.Name == "MouseButton1" then
-			setState(not state)
-			-- neon pulse
-			local p = TweenService:Create(sw, TweenInfo.new(0.12), {Size = UDim2.new(0, 110, 0, 48)})
-			p:Play()
-			task.delay(0.12, function() TweenService:Create(sw, TweenInfo.new(0.12), {Size = UDim2.new(0, 104, 0, 44)}):Play() end)
-		end
-	end)
-
-	return {Frame = row, SetState = setState, GetState = function() return state end}
-end
-
--- add toggles
-local freezeToggle = buildToggle(controlsCard, "Freeze Trade", 44)
-local autoToggle = buildToggle(controlsCard, "Auto Accept", 124)
-
--- Minimize behaviour: compress to header pill
-local minimized = false
-local function setMinimized(v)
-	minimized = v
-	if minimized then
-		-- compress
-		TweenService:Create(root, TweenInfo.new(0.22), {Size = UDim2.new(0, 420, 0, 84)}):Play()
-		-- hide panels
-		for k, p in pairs(panels) do p.Visible = false end
-		-- update minimize icon
-		minimizeBtn.Text = "▸"
+--== Status updater ==--
+RunService.Heartbeat:Connect(function()
+	local inTrade, player = checkTradeStatus()
+	if inTrade then
+		statusLabel.Text = "Player: " .. player
+		statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
 	else
-		TweenService:Create(root, TweenInfo.new(0.22), {Size = UDim2.new(0, 680, 0, 380)}):Play()
-		-- show active panel
-		panels[currentTab].Visible = true
-		minimizeBtn.Text = "▾"
-	end
-end
-
-minimizeBtn.MouseButton1Click:Connect(function()
-	setMinimized(not minimized)
-end)
-
--- initial visibility
-for k, p in pairs(panels) do p.Visible = false end
-panels["Players"].Visible = true
-panels["Trade Scam"].Visible = false
-
--- Entrance animation
-root.Position = UDim2.new(0.5, 0, -1.2, 0)
-root.Size = UDim2.new(0, 680, 0, 84)
-TweenService:Create(root, TweenInfo.new(0.48, Enum.EasingStyle.Quart), {Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 680, 0, 380)}):Play()
-task.delay(0.5, function()
-	-- restore proper panel states after entrance
-	panels["Players"].Visible = (currentTab == "Players")
-	panels["Trade Scam"].Visible = (currentTab == "Trade Scam")
-end)
-
--- Ensure all UI objects are on top (ZIndex)
-local function setZIndex(parent, z)
-	z = z or 10
-	for _, v in pairs(parent:GetDescendants()) do
-		if v:IsA("GuiObject") then
-			pcall(function() v.ZIndex = z end)
-		end
-	end
-end
-setZIndex(root, 10)
-
--- Optional: double-tap header toggles fake "in-trade" demo (visual)
-local fakeInTrade = false
-local headerTapAcc = 0
-header.InputBegan:Connect(function(input)
-	if input.UserInputType.Name == "Touch" or input.UserInputType.Name == "MouseButton1" then
-		headerTapAcc = headerTapAcc + 1
-		task.delay(0.35, function() headerTapAcc = math.max(0, headerTapAcc - 1) end)
-		if headerTapAcc >= 2 then
-			headerTapAcc = 0
-			fakeInTrade = not fakeInTrade
-			-- visual feedback: highlight selected player (if any) and pulse toggles
-			if fakeInTrade then
-				-- pick random player as partner (visual)
-				local players = Players:GetPlayers()
-				local partner = players[math.random(1, #players)]
-				if partner then
-					-- try select partner visually
-					local ent = playerEntries[partner.UserId]
-					if ent and ent.SetSelected then
-						-- clear others
-						for _, e in pairs(playerEntries) do
-							if e.SetSelected then e.SetSelected(false) end
-						end
-						ent.SetSelected(true)
-						selectedUserId = partner.UserId
-					end
-				end
-				-- pulse controls for demo
-				freezeToggle.SetState(true)
-				autoToggle.SetState(false)
-			else
-				-- deselect all
-				for _, e in pairs(playerEntries) do if e.SetSelected then e.SetSelected(false) end end
-				selectedUserId = nil
-			end
-		end
+		statusLabel.Text = "Status: Not in trade"
+		statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 	end
 end)
-
--- Keep player list updated if DisplayName changes
-local function onDisplayNameChanged(plr)
-	-- rebuild to update ordering & text
-	rebuildPlayerList()
-end
-
-for _, plr in pairs(Players:GetPlayers()) do
-	plr:GetPropertyChangedSignal("DisplayName"):Connect(function() onDisplayNameChanged(plr) end)
-end
-Players.PlayerAdded:Connect(function(plr)
-	plr:GetPropertyChangedSignal("DisplayName"):Connect(function() onDisplayNameChanged(plr) end)
-end)
-
--- Expose a small attribute for external checks
-screenGui:SetAttribute("RinV3_5Ready", true)
-
--- End of script

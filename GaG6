@@ -1,0 +1,182 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+--== Main UI ==--
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TradeHelperUI"
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 220, 0, 180)
+mainFrame.Position = UDim2.new(0.5, -140, 0.5, -110)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 28, 45) -- BLUE DARK
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+
+local titleBar = Instance.new("TextLabel")
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 45, 75) -- BLUE HEADER
+titleBar.Text = "⚡ Rin Script ⚡"
+titleBar.TextColor3 = Color3.fromRGB(235, 240, 255) -- WHITE
+titleBar.Font = Enum.Font.GothamBold
+titleBar.TextSize = 16
+titleBar.Parent = mainFrame
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 12)
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -20, 0, 25)
+statusLabel.Position = UDim2.new(0, 10, 0, 40)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Not in trade"
+statusLabel.TextColor3 = Color3.fromRGB(210, 220, 240) -- SOFT WHITE
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 14
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = mainFrame
+
+--== Warning label ==--
+local warningLabel = Instance.new("TextLabel")
+warningLabel.Size = UDim2.new(1, -20, 0, 25)
+warningLabel.Position = UDim2.new(0, 10, 1, -30)
+warningLabel.BackgroundTransparency = 1
+warningLabel.Text = ""
+warningLabel.TextColor3 = Color3.fromRGB(90, 160, 255) -- LIGHT BLUE WARNING
+warningLabel.Font = Enum.Font.GothamBold
+warningLabel.TextSize = 14
+warningLabel.Visible = false
+warningLabel.Parent = mainFrame
+
+local function showWarning(msg)
+	warningLabel.Text = msg
+	warningLabel.Visible = true
+	warningLabel.TextTransparency = 0
+	task.spawn(function()
+		task.wait(2)
+		TweenService:Create(warningLabel, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+		task.wait(0.5)
+		warningLabel.Visible = false
+	end)
+end
+
+--== Toggles ==--
+local toggleFrame = Instance.new("Frame")
+toggleFrame.Size = UDim2.new(1, -20, 1, -80)
+toggleFrame.Position = UDim2.new(0, 10, 0, 70)
+toggleFrame.BackgroundTransparency = 1
+toggleFrame.Parent = mainFrame
+
+local uiList = Instance.new("UIListLayout", toggleFrame)
+uiList.Padding = UDim.new(0, 8)
+
+local toggles = {
+	"Freeze Trade: ",
+	"Auto Accept: "
+}
+
+local toggleStates = {}
+
+local function createToggle(name)
+	local holder = Instance.new("Frame")
+	holder.Size = UDim2.new(1, 0, 0, 28)
+	holder.BackgroundTransparency = 1
+	holder.Parent = toggleFrame
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, -50, 1, 0)
+	label.BackgroundTransparency = 1
+	label.Text = name
+	label.TextColor3 = Color3.fromRGB(230, 235, 255) -- WHITE TEXT
+	label.Font = Enum.Font.Gotham
+	label.TextSize = 14
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Parent = holder
+
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(0, 45, 1, -4)
+	button.Position = UDim2.new(1, -45, 0, 2)
+	button.BackgroundColor3 = Color3.fromRGB(55, 70, 100) -- OFF BLUE-GRAY
+	button.Text = "OFF"
+	button.TextColor3 = Color3.fromRGB(200, 210, 230)
+	button.Font = Enum.Font.GothamBold
+	button.TextSize = 12
+	button.Parent = holder
+	Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
+
+	toggleStates[name] = false
+
+	button.MouseButton1Click:Connect(function()
+		local inTrade = checkTradeStatus()
+		if not inTrade then
+			showWarning("You need to be in trade!")
+			return
+		end
+
+		toggleStates[name] = not toggleStates[name]
+		if toggleStates[name] then
+			button.Text = "ON"
+			button.TextColor3 = Color3.fromRGB(235, 245, 255)
+			button.BackgroundColor3 = Color3.fromRGB(60, 140, 255) -- BLUE ON
+		else
+			button.Text = "OFF"
+			button.TextColor3 = Color3.fromRGB(200, 210, 230)
+			button.BackgroundColor3 = Color3.fromRGB(55, 70, 100)
+		end
+	end)
+end
+
+for _, name in ipairs(toggles) do
+	createToggle(name)
+end
+
+--== Trade check ==--
+function checkTradeStatus()
+	local mainGui = playerGui:FindFirstChild("Main")
+	if not mainGui then return false, "" end
+
+	local tradeFrame = mainGui:FindFirstChild("Trade")
+	if not tradeFrame or not tradeFrame.Visible then return false, "" end
+
+	local container = tradeFrame:FindFirstChild("Container")
+	if not container then return false, "" end
+
+	local frame1 = container:FindFirstChild("1")
+	local frame2 = container:FindFirstChild("2")
+	if not frame1 or not frame2 then return false, "" end
+
+	local player1Label = frame1:FindFirstChild("TextLabel")
+	local player2Label = frame2:FindFirstChild("TextLabel")
+	if not player1Label or not player2Label then return false, "" end
+
+	local lp = string.lower(player.Name)
+	local ld = string.lower(player.DisplayName)
+
+	if string.lower(player1Label.Text) == lp or string.lower(player1Label.Text) == ld then
+		return true, player2Label.Text
+	elseif string.lower(player2Label.Text) == lp or string.lower(player2Label.Text) == ld then
+		return true, player1Label.Text
+	end
+
+	return false, ""
+end
+
+--== Status updater ==--
+RunService.Heartbeat:Connect(function()
+	local inTrade, partner = checkTradeStatus()
+	if inTrade then
+		statusLabel.Text = "Player: " .. partner
+		statusLabel.TextColor3 = Color3.fromRGB(120, 180, 255) -- BLUE ACTIVE
+	else
+		statusLabel.Text = "Status: Not in trade"
+		statusLabel.TextColor3 = Color3.fromRGB(210, 220, 240)
+	end
+end)

